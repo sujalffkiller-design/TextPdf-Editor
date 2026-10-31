@@ -1,0 +1,799 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>TextPDF Editor Pro</title>
+
+<style>
+:root {
+  --blue:#2563eb;
+  --dark:#17243b;
+  --muted:#64748b;
+  --line:#e2e8f0;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:#f3f6fc;
+  color:var(--dark);
+  font-family:Arial,sans-serif;
+}
+header {
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:white;
+  border-bottom:1px solid var(--line);
+  padding:13px 18px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.logo {
+  font-size:21px;
+  font-weight:800;
+  color:var(--blue);
+}
+.logo span { color:var(--dark); }
+button,.file-label {
+  border:0;
+  border-radius:9px;
+  padding:11px 15px;
+  background:var(--blue);
+  color:white;
+  font-weight:700;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+}
+button:disabled {
+  opacity:.4;
+  cursor:not-allowed;
+}
+.light { background:#eaf0ff;color:#2455b5; }
+.red { background:#fee2e2;color:#b91c1c; }
+main {
+  max-width:1450px;
+  margin:auto;
+  padding:16px;
+}
+.toolbar {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  background:white;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  margin-bottom:14px;
+}
+.workspace {
+  display:grid;
+  grid-template-columns:270px minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+}
+.panel,.viewer {
+  background:white;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:15px;
+}
+.panel h3 { margin:2px 0 14px; }
+.panel label {
+  display:block;
+  font-size:13px;
+  color:var(--muted);
+  margin:12px 0 5px;
+}
+.panel input,.panel select,.panel textarea {
+  width:100%;
+  padding:10px;
+  border:1px solid #d5deeb;
+  border-radius:8px;
+  font:inherit;
+}
+.panel textarea { resize:vertical; }
+.panel button {
+  width:100%;
+  margin-top:10px;
+}
+.viewer {
+  background:#dfe7f2;
+  min-height:65vh;
+  overflow:auto;
+  padding:16px;
+}
+#pages {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:20px;
+}
+.page {
+  position:relative;
+  background:white;
+  box-shadow:0 3px 16px #17243b22;
+  flex:none;
+}
+.page canvas { display:block; }
+.text-layer {
+  position:absolute;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+}
+.detected {
+  position:absolute;
+  display:block;
+  padding:0;
+  margin:0;
+  border:1px solid transparent;
+  background:transparent;
+  color:transparent;
+  white-space:pre;
+  line-height:1;
+  overflow:visible;
+  cursor:text;
+  pointer-events:auto;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:manipulation;
+}
+.detected:hover {
+  outline:1px solid #2563eb;
+  background:#2563eb18;
+}
+.detected.selected {
+  outline:2px solid #2563eb;
+  background:#2563eb25;
+}
+.detected.edited {
+  color:var(--dark);
+  background:white;
+  white-space:pre-wrap;
+  z-index:5;
+}
+.detected.new-text {
+  color:var(--dark);
+  background:#fff8c5;
+  outline:1px dashed #2563eb;
+  z-index:5;
+}
+.empty {
+  text-align:center;
+  padding:75px 15px;
+  color:var(--muted);
+}
+.empty h2 { color:var(--dark); }
+.status {
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.6;
+  margin-top:12px;
+  overflow-wrap:anywhere;
+}
+.note {
+  font-size:12px;
+  line-height:1.55;
+  color:#8a5b16;
+  background:#fff8e8;
+  border-radius:8px;
+  padding:10px;
+  margin-top:12px;
+}
+footer {
+  text-align:center;
+  color:#8290a4;
+  font-size:12px;
+  padding:20px;
+}
+@media(max-width:760px) {
+  header { padding:10px; }
+  .logo { font-size:18px; }
+  main { padding:9px; }
+  .workspace { grid-template-columns:1fr; }
+  .viewer { min-height:50vh;padding:8px; }
+  .toolbar { gap:7px;padding:9px; }
+  .toolbar button,.toolbar .file-label { flex:1; }
+  .panel { order:2; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">Text<span>PDF</span> Editor Pro</div>
+  <button id="download" disabled>Download PDF ↓</button>
+</header>
+
+<main>
+
+  <div class="toolbar">
+    <label class="file-label" for="pdfFile">＋ Open PDF</label>
+    <input id="pdfFile" type="file" accept="application/pdf" hidden>
+
+    <button id="addText" class="light" disabled>＋ Add text</button>
+    <button id="delete" class="red" disabled>Delete selected</button>
+    <button id="zoomOut" class="light">−</button>
+    <span id="zoomLabel">100%</span>
+    <button id="zoomIn" class="light">＋</button>
+  </div>
+
+  <div class="workspace">
+
+    <aside class="panel">
+      <h3>Text editor</h3>
+
+      <label for="content">Text content</label>
+      <textarea id="content" rows="4"
+        placeholder="Select PDF text or add new text..."></textarea>
+
+      <label for="fontSize">Font size (pt)</label>
+      <input id="fontSize" type="number" min="5" max="96" value="12">
+
+      <label for="fontColor">Text color</label>
+      <input id="fontColor" type="color" value="#17243b">
+
+      <label for="fontFamily">Font family</label>
+      <select id="fontFamily">
+        <option value="Helvetica">Helvetica</option>
+        <option value="TimesRoman">Times New Roman</option>
+        <option value="Courier">Courier</option>
+      </select>
+
+      <button id="apply" disabled>Apply text changes</button>
+      <button id="deletePanel" class="red" disabled>Delete selected text</button>
+      <button id="cancelAdd" class="light" disabled>Cancel add-text mode</button>
+
+      <div class="status" id="status">
+        Open a PDF to begin.
+      </div>
+
+      <div class="note">
+        <b>Important:</b> Existing text is covered with a white rectangle
+        and redrawn when exporting. This is visual reconstruction, not
+        native editing of the original PDF text objects. Complex layouts,
+        scanned documents, rotated text and unusual fonts may not reproduce
+        perfectly. OCR is not included.
+      </div>
+
+      <p class="status">
+        Privacy: PDF files are processed in your browser. They are not
+        uploaded to a server. PDF.js and pdf-lib load from a CDN.
+      </p>
+    </aside>
+
+    <section class="viewer">
+      <div id="empty" class="empty">
+        <h2>Your PDF workspace</h2>
+        <p>Open a PDF and tap a detected text line to edit it.</p>
+        <label class="file-label" for="pdfFile">Choose PDF</label>
+      </div>
+      <div id="pages"></div>
+    </section>
+
+  </div>
+</main>
+
+<footer>TextPDF Editor Pro · Browser-based PDF editing</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+let sourceBytes = null;
+let pdf = null;
+let zoom = 1;
+let entries = [];
+let selected = null;
+let nextId = 1;
+let addMode = false;
+
+function say(message) {
+  $("status").textContent = message;
+}
+
+function rgb(hex) {
+  return {
+    r: parseInt(hex.slice(1,3),16),
+    g: parseInt(hex.slice(3,5),16),
+    b: parseInt(hex.slice(5,7),16)
+  };
+}
+
+function refreshButtons() {
+  const loaded = !!pdf;
+
+  $("download").disabled = !loaded;
+  $("addText").disabled = !loaded;
+  $("delete").disabled = !selected;
+  $("deletePanel").disabled = !selected;
+  $("apply").disabled = !selected;
+  $("cancelAdd").disabled = !addMode;
+}
+
+function setSelected(entry) {
+  selected = entry;
+
+  document.querySelectorAll(".detected").forEach(node => {
+    node.classList.toggle(
+      "selected",
+      Number(node.dataset.id) === entry.id
+    );
+  });
+
+  $("content").value = entry.text;
+  $("fontSize").value = entry.size;
+  $("fontColor").value = entry.color;
+  $("fontFamily").value = entry.family;
+
+  refreshButtons();
+}
+
+function fontCss(family) {
+  if (family === "TimesRoman") return "serif";
+  if (family === "Courier") return "monospace";
+  return "Arial, sans-serif";
+}
+
+function positionEntry(entry, viewport) {
+  const tx = pdfjsLib.Util.transform(
+    viewport.transform,
+    entry.transform
+  );
+
+  const height = Math.max(8, Math.hypot(tx[2], tx[3]));
+  const width = Math.max(12, entry.width * zoom);
+
+  entry.css = {
+    left: tx[4],
+    top: tx[5] - height,
+    width: width,
+    height: height,
+    fontSize: height
+  };
+}
+
+function drawEntry(entry, layer) {
+  if (entry.deleted) return;
+
+  if (!layer) {
+    layer = document.querySelector(
+      `.page[data-page="${entry.page}"] .text-layer`
+    );
+  }
+
+  if (!layer) return;
+
+  let node = layer.querySelector(
+    `[data-id="${entry.id}"]`
+  );
+
+  if (!node) {
+    node = document.createElement("div");
+    node.className = "detected";
+    node.dataset.id = entry.id;
+    layer.appendChild(node);
+
+    node.addEventListener("pointerdown", event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (addMode) return;
+
+      setSelected(entry);
+      say("Text selected. Edit it in the panel.");
+    });
+  }
+
+  node.textContent = entry.text;
+
+  node.style.left = entry.css.left + "px";
+  node.style.top = entry.css.top + "px";
+  node.style.width = Math.max(entry.css.width, 25) + "px";
+  node.style.height = Math.max(entry.css.height, 12) + "px";
+  node.style.fontSize = entry.css.fontSize + "px";
+  node.style.fontFamily = fontCss(entry.family);
+
+  node.classList.toggle("edited", !!entry.edited);
+  node.classList.toggle("new-text", !!entry.isNew);
+  node.classList.toggle("selected", selected?.id === entry.id);
+}
+
+async function renderAll() {
+  $("pages").innerHTML = "";
+
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const viewport = page.getViewport({ scale: zoom });
+
+    const wrap = document.createElement("div");
+    wrap.className = "page";
+    wrap.dataset.page = pageNo;
+    wrap.style.width = viewport.width + "px";
+    wrap.style.height = viewport.height + "px";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    canvas.style.width = viewport.width + "px";
+    canvas.style.height = viewport.height + "px";
+
+    const layer = document.createElement("div");
+    layer.className = "text-layer";
+
+    wrap.append(canvas, layer);
+    $("pages").appendChild(wrap);
+
+    await page.render({
+      canvasContext: canvas.getContext("2d"),
+      viewport
+    }).promise;
+
+    const pageEntries = entries.filter(e => e.page === pageNo);
+
+    pageEntries.forEach(entry => {
+      if (!entry.isNew) {
+        positionEntry(entry, viewport);
+      } else {
+        entry.css = {
+          left: entry.screenX * zoom,
+          top: entry.screenY * zoom,
+          width: 160 * zoom,
+          height: entry.size * zoom,
+          fontSize: entry.size * zoom
+        };
+      }
+
+      drawEntry(entry, layer);
+    });
+
+    wrap.addEventListener("click", event => {
+      if (!addMode) return;
+      if (event.target.closest(".detected")) return;
+
+      addAtPage(event, wrap, viewport);
+    });
+  }
+}
+
+async function openPDF(file) {
+  try {
+    say("Loading PDF...");
+
+    sourceBytes = new Uint8Array(await file.arrayBuffer());
+
+    pdf = await pdfjsLib.getDocument({
+      data: sourceBytes.slice()
+    }).promise;
+
+    entries = [];
+    selected = null;
+    nextId = 1;
+    zoom = 1;
+    addMode = false;
+
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+      const page = await pdf.getPage(pageNo);
+      const textContent = await page.getTextContent();
+
+      textContent.items.forEach((item, index) => {
+        if (!item.str || !item.str.trim()) return;
+
+        const entry = {
+          id: nextId++,
+          page: pageNo,
+          sourceIndex: index,
+          text: item.str,
+          original: item.str,
+          transform: item.transform.slice(),
+          x: item.transform[4],
+          y: item.transform[5],
+          width: item.width,
+          height: item.height || 12,
+          size: Math.max(
+            5,
+            Math.min(96, Math.hypot(
+              item.transform[2],
+              item.transform[3]
+            ))
+          ),
+          color: "#17243b",
+          family: "Helvetica",
+          edited: false,
+          deleted: false,
+          isNew: false
+        };
+
+        entries.push(entry);
+      });
+    }
+
+    $("empty").hidden = true;
+    $("zoomLabel").textContent = "100%";
+
+    await renderAll();
+
+    refreshButtons();
+
+    say(
+      file.name + " · " + pdf.numPages +
+      " page(s) · " + entries.length +
+      " text elements detected."
+    );
+
+  } catch (error) {
+    console.error(error);
+    say("Could not open PDF. Check whether it is encrypted or damaged.");
+  }
+}
+
+$("pdfFile").addEventListener("change", event => {
+  const file = event.target.files?.[0];
+  if (file) openPDF(file);
+  event.target.value = "";
+});
+
+function addAtPage(event, wrap, viewport) {
+  const rect = wrap.getBoundingClientRect();
+
+  const px = event.clientX - rect.left;
+  const py = event.clientY - rect.top;
+
+  const [x, y] = viewport.convertToPdfPoint(px, py);
+
+  const entry = {
+    id: nextId++,
+    page: Number(wrap.dataset.page),
+    sourceIndex: -1,
+    text: "New text",
+    original: "",
+    x: x,
+    y: y,
+    width: 150,
+    height: 18,
+    size: 18,
+    color: "#17243b",
+    family: "Helvetica",
+    edited: true,
+    deleted: false,
+    isNew: true,
+    screenX: px / zoom,
+    screenY: py / zoom,
+    css: {
+      left: px,
+      top: py - 18 * zoom,
+      width: 160 * zoom,
+      height: 18 * zoom,
+      fontSize: 18 * zoom
+    }
+  };
+
+  entries.push(entry);
+
+  addMode = false;
+
+  const node = wrap.querySelector(".text-layer");
+  drawEntry(entry, node);
+
+  setSelected(entry);
+  say("New text added. Edit it and press Apply.");
+}
+
+$("addText").addEventListener("click", () => {
+  if (!pdf) return;
+
+  addMode = true;
+  refreshButtons();
+
+  say("Tap a blank area on a PDF page to place new text.");
+});
+
+$("cancelAdd").addEventListener("click", () => {
+  addMode = false;
+  refreshButtons();
+  say("Add-text mode cancelled.");
+});
+
+function applyChanges() {
+  if (!selected) {
+    say("Select a text item first.");
+    return;
+  }
+
+  selected.text = $("content").value;
+  selected.size = Math.max(
+    5,
+    Math.min(96, Number($("fontSize").value) || 12)
+  );
+  selected.color = $("fontColor").value;
+  selected.family = $("fontFamily").value;
+  selected.edited = true;
+
+  const node = document.querySelector(
+    `.detected[data-id="${selected.id}"]`
+  );
+
+  if (!node) {
+    say("Preview element not found. Please select the text again.");
+    return;
+  }
+
+  node.textContent = selected.text;
+  node.style.color = selected.color;
+  node.style.fontSize = selected.size * zoom + "px";
+  node.style.fontFamily = fontCss(selected.family);
+
+  node.classList.add("edited");
+  node.classList.remove("new-text");
+
+  say("Changes applied successfully! Download PDF to save.");
+}
+
+$("apply").addEventListener("click", applyChanges);
+
+function deleteSelected() {
+  if (!selected) return;
+
+  selected.deleted = true;
+
+  document.querySelectorAll(
+    `.detected[data-id="${selected.id}"]`
+  ).forEach(node => node.remove());
+
+  selected = null;
+
+  $("content").value = "";
+
+  refreshButtons();
+  say("Text marked for deletion. Download PDF to save.");
+}
+
+$("delete").addEventListener("click", deleteSelected);
+$("deletePanel").addEventListener("click", deleteSelected);
+
+$("zoomIn").addEventListener("click", async () => {
+  if (!pdf) return;
+
+  zoom = Math.min(2, zoom + 0.1);
+  $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
+
+  await renderAll();
+});
+
+$("zoomOut").addEventListener("click", async () => {
+  if (!pdf) return;
+
+  zoom = Math.max(0.5, zoom - 0.1);
+  $("zoomLabel").textContent = Math.round(zoom * 100) + "%";
+
+  await renderAll();
+});
+
+async function downloadPDF() {
+  if (!pdf || !sourceBytes) return;
+
+  try {
+    say("Preparing your edited PDF...");
+
+    const output = await PDFLib.PDFDocument.load(
+      sourceBytes.slice()
+    );
+
+    const fontTypes = {
+      Helvetica: PDFLib.StandardFonts.Helvetica,
+      TimesRoman: PDFLib.StandardFonts.TimesRoman,
+      Courier: PDFLib.StandardFonts.Courier
+    };
+
+    const fontCache = {};
+
+    for (const entry of entries) {
+      if (
+        !entry.isNew &&
+        !entry.edited &&
+        !entry.deleted
+      ) {
+        continue;
+      }
+
+      const page = output.getPage(entry.page - 1);
+
+      if (!entry.isNew) {
+        const coverWidth = Math.max(
+          entry.width + 4,
+          entry.size * 2
+        );
+
+        const coverHeight = Math.max(
+          entry.height * 1.25,
+          entry.size * 1.3
+        );
+
+        page.drawRectangle({
+          x: entry.x - 1,
+          y: entry.y - entry.size * 0.3,
+          width: coverWidth,
+          height: coverHeight,
+          color: PDFLib.rgb(1, 1, 1),
+          borderWidth: 0
+        });
+      }
+
+      if (entry.deleted || !entry.text) continue;
+
+      const fontName = entry.family || "Helvetica";
+
+      if (!fontCache[fontName]) {
+        fontCache[fontName] = await output.embedFont(
+          fontTypes[fontName] || PDFLib.StandardFonts.Helvetica
+        );
+      }
+
+      const c = rgb(entry.color);
+
+      page.drawText(entry.text, {
+        x: entry.x,
+        y: entry.isNew
+          ? entry.y - entry.size
+          : entry.y - entry.size * 0.15,
+        size: entry.size,
+        font: fontCache[fontName],
+        color: PDFLib.rgb(
+          c.r / 255,
+          c.g / 255,
+          c.b / 255
+        ),
+        maxWidth: Math.max(entry.width, 100)
+      });
+    }
+
+    const bytes = await output.save();
+
+    const blob = new Blob([bytes], {
+      type: "application/pdf"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "TextPDF-Edited.pdf";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+
+    say("PDF created! Check your Downloads folder.");
+
+  } catch (error) {
+    console.error(error);
+    say("PDF export failed. Check the Console for details.");
+  }
+}
+
+$("download").addEventListener("click", downloadPDF);
+
+refreshButtons();
+</script>
+
+</body>
+</html>
